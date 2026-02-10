@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Packaging artifacts
+build/
+dist/
+*.egg-info/
+
+# Local outputs
+data/outputs/*
+!data/outputs/.gitkeep
+
+# OS/editor
+.DS_Store
+Thumbs.db

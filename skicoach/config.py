@@ -1,0 +1,25 @@
+MIN_VISIBILITY = 0.5
+SMOOTHING_WINDOW = 5
+
+# COM proxy blend
+COM_HIP_WEIGHT = 0.7
+
+# Coaching thresholds
+OUTSIDE_SKI_OFFSET_THRESHOLD = 0.35
+COM_CENTERED_RATIO_THRESHOLD = 0.12
+ANGULATION_DEG_THRESHOLD = 8.0
+LEG_TILT_MIN_DEG = 10.0
+LATE_COM_RATIO_THRESHOLD = 0.7
+
+# Turn detection
+TURN_MIN_FRAMES = 20
+TURN_APEX_WINDOW_RATIO = 0.1
+
+# Crop settings
+CROP_MARGIN_X = 0.30
+CROP_MARGIN_Y = 0.25
+CROP_EMA_ALPHA = 0.35
+CROP_MIN_POINTS = 4
+
+# Annotated video encoding order (first successful codec is used)
+VIDEO_CODEC_CANDIDATES = ["avc1", "mp4v"]
