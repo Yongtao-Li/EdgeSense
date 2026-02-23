@@ -73,6 +73,8 @@ def overlay_frame(
     visibility: np.ndarray,
     phase: Optional[str] = None,
     turn_id: Optional[int] = None,
+    target_box: Optional[np.ndarray] = None,
+    tracking_state: Optional[str] = None,
 ) -> np.ndarray:
     drawn = frame.copy()
     kp = keypoints.copy()
@@ -93,5 +95,20 @@ def overlay_frame(
         _draw_point(drawn, kp[idx, :2], (220, 220, 220))
     if com is not None:
         _draw_point(drawn, com[:2], (255, 0, 0))
+
+    if target_box is not None:
+        x1, y1, x2, y2 = target_box.astype(np.int32)
+        cv2.rectangle(drawn, (x1, y1), (x2, y2), (20, 120, 230), 2)
+        if tracking_state:
+            cv2.putText(
+                drawn,
+                f"Target: {tracking_state}",
+                (x1, max(16, y1 - 8)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (20, 120, 230),
+                1,
+                cv2.LINE_AA,
+            )
     _draw_legend(drawn, phase=phase, turn_id=turn_id)
     return drawn

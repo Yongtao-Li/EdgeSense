@@ -6,6 +6,26 @@ import numpy as np
 from .config import TURN_MIN_FRAMES
 
 
+def _fill_nan_1d(values: np.ndarray) -> np.ndarray:
+    filled = values.astype(np.float32).copy()
+    if filled.size == 0:
+        return filled
+
+    valid_idx = np.where(np.isfinite(filled))[0]
+    if valid_idx.size == 0:
+        return np.zeros_like(filled)
+
+    first = int(valid_idx[0])
+    last = int(valid_idx[-1])
+    filled[:first] = filled[first]
+    filled[last + 1 :] = filled[last]
+
+    for idx in range(first + 1, last + 1):
+        if not np.isfinite(filled[idx]):
+            filled[idx] = filled[idx - 1]
+    return filled
+
+
 @dataclass
 class TurnSegment:
     start: int
@@ -20,11 +40,13 @@ def compute_com_x(keypoints: np.ndarray) -> np.ndarray:
     right_hip = keypoints[:, 24, 0]
     left_shoulder = keypoints[:, 11, 0]
     right_shoulder = keypoints[:, 12, 0]
-    com_x = np.nanmean(
-        np.stack([left_hip, right_hip, left_shoulder, right_shoulder], axis=1),
-        axis=1,
-    )
-    return com_x
+    stacked = np.stack([left_hip, right_hip, left_shoulder, right_shoulder], axis=1)
+    valid_counts = np.sum(np.isfinite(stacked), axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        summed = np.nansum(stacked, axis=1)
+        com_x = summed / np.maximum(valid_counts, 1)
+    com_x[valid_counts == 0] = np.nan
+    return _fill_nan_1d(com_x)
 
 
 def _turn_boundaries_from_velocity(com_x: np.ndarray) -> List[int]:

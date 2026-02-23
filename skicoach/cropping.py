@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -24,10 +24,18 @@ def _bbox_from_points(points_xy: np.ndarray, width: int, height: int) -> np.ndar
     return _clip_box(np.array([x1, y1, x2, y2], dtype=np.float32), width, height)
 
 
-def compute_crop_boxes(keypoints: np.ndarray, visibility: np.ndarray, frame_shape: Tuple[int, int, int]) -> List[np.ndarray]:
+def compute_crop_boxes(
+    keypoints: np.ndarray,
+    visibility: np.ndarray,
+    frame_shape: Tuple[int, int, int],
+    initial_box: Optional[np.ndarray] = None,
+) -> List[np.ndarray]:
     height, width = frame_shape[:2]
     boxes: List[np.ndarray] = []
-    prev = np.array([0, 0, width, height], dtype=np.float32)
+    if initial_box is not None:
+        prev = _clip_box(initial_box.astype(np.float32), width, height).astype(np.float32)
+    else:
+        prev = np.array([0, 0, width, height], dtype=np.float32)
 
     for i in range(keypoints.shape[0]):
         vis = visibility[i] >= MIN_VISIBILITY

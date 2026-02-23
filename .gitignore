@@ -17,6 +17,7 @@ dist/
 # Local outputs
 data/outputs/*
 !data/outputs/.gitkeep
+yolov8n.pt
 
 # OS/editor
 .DS_Store

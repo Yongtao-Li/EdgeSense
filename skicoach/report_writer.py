@@ -40,6 +40,99 @@ def _turn_payload(turn: TurnSegment, metric: TurnMetrics, issues: List[CoachingI
     }
 
 
+def _severity_label(severity: float) -> str:
+    if severity >= 0.75:
+        return "High"
+    if severity >= 0.45:
+        return "Medium"
+    return "Low"
+
+
+def _safe_fmt(value: object, digits: int = 2) -> str:
+    if value is None:
+        return "n/a"
+    if isinstance(value, (int, float)):
+        return f"{value:.{digits}f}"
+    return str(value)
+
+
+def _top_priority_lines(issues: List[CoachingIssue]) -> List[str]:
+    lines: List[str] = []
+    if not issues:
+        return ["- No major issues detected with current thresholds."]
+    for idx, issue in enumerate(issues[:3], start=1):
+        lines.extend(
+            [
+                f"### {idx}) {issue.code} ({_severity_label(issue.severity)})",
+                f"- Diagnosis: {issue.diagnosis}",
+                f"- Cue: {issue.cue}",
+                f"- Drill: {issue.drill}",
+                f"- Evidence: {issue.evidence}",
+            ]
+        )
+    return lines
+
+
+def _turn_table_lines(turns_payload: List[Dict[str, object]]) -> List[str]:
+    lines = [
+        "| Turn | Dir | Frames (s-a-e) | Outside | Angulation | Timing | Score | Flags |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: | --- |",
+    ]
+    if not turns_payload:
+        lines.append("| - | - | - | - | - | - | - | No turns detected |")
+        return lines
+
+    for t in turns_payload:
+        frames = t.get("frames")
+        scores = t.get("scores")
+        flags = t.get("flags")
+        if not isinstance(frames, dict) or not isinstance(scores, dict) or not isinstance(flags, list):
+            continue
+        flag_bits = []
+        for flag in flags:
+            if not isinstance(flag, dict):
+                continue
+            code = str(flag.get("code", ""))
+            severity = float(flag.get("severity", 0.0))
+            flag_bits.append(f"{code}({_severity_label(severity)})")
+        flag_text = ", ".join(flag_bits) if flag_bits else "None"
+        lines.append(
+            "| {turn_id} | {direction} | {start}-{apex}-{end} | {outside:.2f} | {ang:.2f} | {timing:.2f} | {simple:.2f} | {flags} |".format(
+                turn_id=t.get("id", "?"),
+                direction=t.get("direction", "?"),
+                start=frames.get("start", "?"),
+                apex=frames.get("apex", "?"),
+                end=frames.get("end", "?"),
+                outside=float(scores.get("outside_ski", 0.0)),
+                ang=float(scores.get("angulation", 0.0)),
+                timing=float(scores.get("timing", 0.0)),
+                simple=float(scores.get("simple", 0.0)),
+                flags=flag_text,
+            )
+        )
+    return lines
+
+
+def _next_session_lines(issues: List[CoachingIssue]) -> List[str]:
+    if not issues:
+        return ["- Keep current cues and collect one more clip for trend tracking."]
+
+    drills = []
+    seen = set()
+    for issue in issues:
+        if issue.drill in seen:
+            continue
+        seen.add(issue.drill)
+        drills.append((issue.code, issue.drill))
+        if len(drills) >= 3:
+            break
+
+    lines = []
+    for idx, (code, drill) in enumerate(drills, start=1):
+        lines.append(f"{idx}. {code}: {drill}")
+    return lines
+
+
 def write_reports(
     output_dir: Path,
     video_meta: Dict[str, object],
@@ -83,38 +176,82 @@ def write_reports(
     }
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    md_lines = ["# Ski Coaching Report", "", "## Top Issues"]
-    if not issues:
-        md_lines.append("No issues detected with current thresholds.")
-    for issue in issues[:3]:
-        md_lines.extend(
-            [
-                "",
-                f"### {issue.code}",
-                f"- Diagnosis: {issue.diagnosis}",
-                f"- Cue: {issue.cue}",
-                f"- Drill: {issue.drill}",
-                f"- Evidence: {issue.evidence}",
-                f"- Metric calculation: {_issue_calc(issue.code)}",
-            ]
-        )
+    tracking = video_meta.get("tracking") if isinstance(video_meta, dict) else None
+    tracking_summary = tracking.get("summary") if isinstance(tracking, dict) else None
+    lock_ratio = tracking_summary.get("lock_ratio") if isinstance(tracking_summary, dict) else None
+    reacquire_count = tracking_summary.get("reacquire_count") if isinstance(tracking_summary, dict) else None
+    max_lost = tracking_summary.get("max_lost_streak") if isinstance(tracking_summary, dict) else None
+    pose_stats = video_meta.get("pose_stats") if isinstance(video_meta, dict) else None
+    pose_drift_frames = pose_stats.get("drift_frames") if isinstance(pose_stats, dict) else None
+    pose_fallback_frames = pose_stats.get("fallback_frames") if isinstance(pose_stats, dict) else None
 
-    md_lines.extend(["", "## Turn Summary"])
-    if not turns_payload:
-        md_lines.append("No turns detected.")
-    for t in turns_payload:
-        md_lines.extend(
-            [
-                "",
-                f"### Turn {t['id']} ({t['direction']})",
-                f"- Frames: start={t['frames']['start']}, apex={t['frames']['apex']}, end={t['frames']['end']}",
-                f"- Score: {t['scores']['simple']:.2f}",
-            ]
-        )
+    md_lines = [
+        "# Ski Coaching Report",
+        "",
+        "## Session Snapshot",
+        "| Item | Value |",
+        "| --- | --- |",
+        f"| Video | {Path(str(video_meta.get('path', 'unknown'))).name} |",
+        f"| View | {video_meta.get('view', 'unknown')} |",
+        f"| FPS | {_safe_fmt(video_meta.get('fps', 'n/a'))} |",
+        f"| Frames | {video_meta.get('frame_count', 'n/a')} |",
+        f"| Turns Detected | {len(turns_payload)} |",
+        f"| Pose Mode | {video_meta.get('pose_mode', 'full_frame')} |",
+        f"| Detector | {video_meta.get('person_detector_backend', 'unknown')} |",
+        f"| Tracking Lock Ratio | {_safe_fmt(lock_ratio)} |",
+        f"| Reacquire Count | {_safe_fmt(reacquire_count, 0)} |",
+        f"| Max Lost Streak | {_safe_fmt(max_lost, 0)} |",
+        f"| Pose Drift Frames | {_safe_fmt(pose_drift_frames, 0)} |",
+        f"| Pose Fallback Frames | {_safe_fmt(pose_fallback_frames, 0)} |",
+        "",
+        "## Top Priorities",
+    ]
 
-    md_lines.extend(["", "## Left vs Right", f"- Left avg outside-ski score: {left_vs_right['left_avg']}"])
-    md_lines.append(f"- Right avg outside-ski score: {left_vs_right['right_avg']}")
-    md_lines.extend(["", "## Annotated Video", f"- File: {annotated_video_path.name}"])
+    md_lines.extend(_top_priority_lines(issues))
+
+    md_lines.extend([
+        "",
+        "## Turn Dashboard",
+    ])
+    md_lines.extend(_turn_table_lines(turns_payload))
+
+    imbalance = "Balanced"
+    if left_vs_right["left_avg"] is not None and left_vs_right["right_avg"] is not None:
+        delta = float(left_vs_right["left_avg"] - left_vs_right["right_avg"])
+        if abs(delta) > 0.08:
+            imbalance = "Left stronger" if delta > 0 else "Right stronger"
+    md_lines.extend(
+        [
+            "",
+            "## Left vs Right",
+            "| Metric | Left | Right | Note |",
+            "| --- | ---: | ---: | --- |",
+            "| Outside-ski control | {left} | {right} | {note} |".format(
+                left=_safe_fmt(left_vs_right["left_avg"]),
+                right=_safe_fmt(left_vs_right["right_avg"]),
+                note=imbalance,
+            ),
+            "",
+            "## Next Session Plan",
+        ]
+    )
+    md_lines.extend(_next_session_lines(issues))
+
+    md_lines.extend(
+        [
+            "",
+            "## Confidence Notes",
+            "- Tracking and pose values are strongest when lock ratio is high and lost streak is low.",
+            "- Use this report for trend tracking across multiple clips, not one-off verdicts.",
+            "",
+            "## Metric Definitions",
+        ]
+    )
+    if issues:
+        for issue in issues[:3]:
+            md_lines.append(f"- {issue.code}: {_issue_calc(issue.code)}")
+    else:
+        md_lines.append("- No issue formulas shown because no issues were flagged.")
 
     md_path.write_text("\n".join(md_lines), encoding="utf-8")
     return json_path, md_path

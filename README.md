@@ -33,7 +33,7 @@ Outputs are written to `data/outputs/<video_name>/`:
 
 - `report.json`
 - `report.md`
-- `annotated.mp4`
+- `annotated_preview.mp4` (browser-optimized playback)
 
 ## Run (Streamlit)
 
@@ -55,7 +55,30 @@ Tune thresholds in `skicoach/config.py`:
 - `TURN_MIN_FRAMES`
 - `CROP_MARGIN_X`
 - `CROP_MARGIN_Y`
+- `PERSON_DETECTOR_BACKEND`
+- `YOLO_MODEL`
+- `YOLO_CONF_THRESHOLD`
+- `YOLO_IOU_THRESHOLD`
+- `RENDER_MAX_UPSCALE`
+- `RENDER_SIZE_PERCENTILE`
+- `RENDER_MIN_CROP_WIDTH`
+- `RENDER_MIN_CROP_HEIGHT`
+- `RENDER_WARMUP_FRAMES`
+- `RENDER_WARMUP_SCALE`
+- `POSE_CROP_MARGIN_X`
+- `POSE_CROP_MARGIN_Y`
+- `POSE_DRIFT_MAX_CENTER_DIST_NORM`
+- `POSE_DRIFT_HOLD_FRAMES`
+- `TRACK_MATCH_SCORE_THRESHOLD`
+- `TRACK_MISS_STREAK_TO_LOST`
+- `TRACK_HIT_STREAK_TO_LOCK`
 - `VIDEO_CODEC_CANDIDATES`
+
+For higher-quality multi-person detection, install YOLO runtime:
+
+```bash
+pip install -e ".[yolo]"
+```
 
 ## Tests
 
@@ -67,9 +90,9 @@ pytest -q
 
 ### Week 1: Reliability + Core UX
 
-- [ ] Add target skier selection UI for first-frame person pick.
-- [ ] Add target tracking lock and reacquire behavior for multi-person scenes.
-- [ ] Run pose on tracked target crop and map keypoints back to frame space.
+- [x] Add target skier selection UI for first-frame person pick.
+- [x] Add target tracking lock and reacquire behavior for multi-person scenes.
+- [x] Run pose on tracked target crop and map keypoints back to frame space.
 - [ ] Add per-turn timeline with init/apex/finish jump controls in Streamlit.
 - [ ] Add per-turn confidence scoring from visibility and tracking stability.
 
